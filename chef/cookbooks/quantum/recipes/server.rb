@@ -13,37 +13,58 @@
 # limitations under the License.
 #
 
+service node[:quantum][:platform][:service] do
+  supports :status => true, :restart => true, :reload => true
+  action :nothing
+end
+
+# prepare plugin variable
+case node[:quantum][:networking_plugin]
+when "openvswitch"
+  plugin_packages = node[:quantum][:platform][:plugins]["openvswitch"]
+  plugin_cfg_path = "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
+  physnet = node[:quantum][:networking_mode] == 'gre' ? "br-tunnel" : "br-fixed"
+  interface_driver = "quantum.agent.linux.interface.OVSInterfaceDriver"
+when "linuxbridge"
+  plugin_packages = node[:quantum][:platform][:plugins]["linuxbridge"]
+  plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
+  physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
+  interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
+end
+
 unless node[:quantum][:use_gitrepo]
-  case node[:quantum][:networking_plugin]
-  when "openvswitch"
-    plugin_cfg_path = "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
-    quantum_agent = node[:quantum][:platform][:ovs_agent_name]
-  when "linuxbridge"
-    plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
-    quantum_agent = node[:quantum][:platform][:lb_agent_name]
+
+  # install server package
+  package node[:quantum][:platform][:server] do
+    # stop server if package installed or updated
+    notifies :stop, "service[#{node[:quantum][:platform][:service]}]", :immediately
+  end.run_action(:install)
+
+  # install plugin packages
+  (plugin_packages||[]).each do |pkg|
+    package pkg
   end
-  pkgs = node[:quantum][:platform][:pkgs]
-  pkgs.each { |p| package p }
+
   file "/etc/default/quantum-server" do
     action :delete
     not_if { node[:platform] == "suse" }
-    notifies :restart, "service[#{node[:quantum][:platform][:service_name]}]"
+    notifies :restart, "service[#{node[:quantum][:platform][:service]}]"
   end
+
   template "/etc/sysconfig/quantum" do
     source "suse.sysconfig.quantum.erb"
     owner "root"
     group "root"
     mode 0640
     variables(
-      :plugin_config_file => plugin_cfg_path
+        :plugin_config_file => plugin_cfg_path
     )
     only_if { node[:platform] == "suse" }
-    notifies :restart, "service[#{node[:quantum][:platform][:service_name]}]"
+    notifies :restart, "service[#{node[:quantum][:platform][:service]}]"
   end
+
 else
-  quantum_agent = "quantum-openvswitch-agent"
-  plugin_cfg_path = "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
-  quantum_service_name="quantum-server"
+
   quantum_path = "/opt/quantum"
   venv_path = node[:quantum][:use_virtualenv] ? "#{quantum_path}/.venv" : nil
 
@@ -51,34 +72,11 @@ else
     virtualenv venv_path
     bin_name "quantum-server --config-dir /etc/quantum/"
   end
-  link_service "quantum-dhcp-agent" do
-    virtualenv venv_path
-    bin_name "quantum-dhcp-agent --config-dir /etc/quantum/"
-  end
-  link_service "quantum-l3-agent" do
-    virtualenv venv_path
-    bin_name "quantum-l3-agent --config-dir /etc/quantum/"
-  end
-  link_service "quantum-metadata-agent" do
-    virtualenv venv_path
-    bin_name "quantum-metadata-agent --config-dir /etc/quantum/ --config-file /etc/quantum/metadata_agent.ini"
-  end
+
 end
 
 include_recipe "quantum::database"
 include_recipe "quantum::api_register"
-include_recipe "quantum::common_install"
-
-# Kill all the libvirt default networks.
-execute "Destroy the libvirt default network" do
-  command "virsh net-destroy default"
-  only_if "virsh net-list |grep default"
-end
-
-link "/etc/libvirt/qemu/networks/autostart/default.xml" do
-  action :delete
-end
-
 
 env_filter = " AND keystone_config_environment:keystone-config-#{node[:quantum][:keystone_instance]}"
 keystones = search(:node, "recipes:keystone\\:\\:server#{env_filter}") || []
@@ -89,15 +87,76 @@ else
   keystone = node
 end
 
-keystone_host = keystone[:fqdn]
-keystone_protocol = keystone["keystone"]["api"]["protocol"]
-keystone_service_port = keystone["keystone"]["api"]["service_port"]
-keystone_admin_port = keystone["keystone"]["api"]["admin_port"]
-keystone_service_tenant = keystone["keystone"]["service"]["tenant"]
-keystone_service_user = node["quantum"]["service_user"]
-keystone_service_password = node["quantum"]["service_password"]
-keystone_service_url = "#{keystone_protocol}://#{keystone_host}:#{keystone_admin_port}/v2.0"
-Chef::Log.info("Keystone server found at #{keystone_host}")
+keystone_settings = {
+  :host => keystone[:fqdn],
+  :protocol => keystone["keystone"]["api"]["protocol"],
+  :service_port => keystone["keystone"]["api"]["service_port"],
+  :admin_port => keystone["keystone"]["api"]["admin_port"],
+  :service_tenant => keystone["keystone"]["service"]["tenant"],
+  :service_user => node["quantum"]["service_user"],
+  :service_password => node["quantum"]["service_password"]
+}
+
+env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{node[:quantum][:rabbitmq_instance]}"
+rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
+if rabbits.length > 0
+  rabbit = rabbits[0]
+  rabbit = node if rabbit.name == node.name
+else
+  rabbit = node
+end
+rabbit_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit, "admin").address
+Chef::Log.info("Rabbit server found at #{rabbit_address}")
+rabbit_settings = {
+    :address => rabbit_address,
+    :port => rabbit[:rabbitmq][:port],
+    :user => rabbit[:rabbitmq][:user],
+    :password => rabbit[:rabbitmq][:password],
+    :vhost => rabbit[:rabbitmq][:vhost]
+}
+
+vlan = {
+    :start => node[:network][:networks][:nova_fixed][:vlan],
+    :end => node[:network][:networks][:nova_fixed][:vlan] + 2000
+}
+
+template "/etc/quantum/quantum.conf" do
+  cookbook "quantum"
+  source "quantum.conf.erb"
+  mode "0640"
+  owner node[:quantum][:platform][:user]
+  variables(
+    :debug => node[:quantum][:debug],
+    :verbose => node[:quantum][:verbose],
+    :sql_connection => node[:quantum][:db][:sql_connection],
+    :sql_idle_timeout => node[:quantum][:sql][:idle_timeout],
+    :sql_min_pool_size => node[:quantum][:sql][:min_pool_size],
+    :sql_max_pool_size => node[:quantum][:sql][:max_pool_size],
+    :sql_pool_timeout => node[:quantum][:sql][:pool_timeout],
+    :debug => node[:quantum][:debug],
+    :verbose => node[:quantum][:verbose],
+    :service_port => node[:quantum][:api][:service_port], # Compute port
+    :service_host => node[:quantum][:api][:service_host],
+    :use_syslog => node[:quantum][:use_syslog],
+    :ssl_enabled => node[:quantum][:api][:protocol] == 'https',
+    :ssl_cert_file => node[:quantum][:ssl][:certfile],
+    :ssl_key_file => node[:quantum][:ssl][:keyfile],
+    :ssl_cert_required => node[:quantum][:ssl][:cert_required],
+    :ssl_ca_file => node[:quantum][:ssl][:ca_certs],
+    :networking_mode => node[:quantum][:networking_mode],
+    :networking_plugin => node[:quantum][:networking_plugin],
+    :rootwrap_bin =>  node[:quantum][:rootwrap],
+    :quantum_server => true,
+    :keystone => keystone_settings,
+    :rabbit => rabbit_settings,
+    :vlan => vlan,
+    :per_tenant_vlan => (node[:quantum][:networking_mode] == 'vlan' ? true : false),
+    :physnet => physnet,
+    :interface_driver => interface_driver
+  )
+  # TODO: return this if really needed
+  #:metadata => metadata,
+end
 
 template "/etc/quantum/api-paste.ini" do
   source "api-paste.ini.erb"
@@ -105,215 +164,15 @@ template "/etc/quantum/api-paste.ini" do
   group "root"
   mode "0640"
   variables(
-    :keystone_protocol => keystone_protocol,
-    :keystone_host => keystone_host,
-    :keystone_service_port => keystone_service_port,
-    :keystone_service_tenant => keystone_service_tenant,
-    :keystone_service_user => keystone_service_user,
-    :keystone_service_password => keystone_service_password,
-    :keystone_admin_port => keystone_admin_port
+      :keystone => keystone_settings
   )
 end
 
-case node[:quantum][:networking_plugin]
-when "openvswitch"
-  interface_driver = "quantum.agent.linux.interface.OVSInterfaceDriver"
-when "linuxbridge"
-  interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
-end
-
-# Hardcode for now.
-template "/etc/quantum/l3_agent.ini" do
-  source "l3_agent.ini.erb"
-  owner node[:quantum][:platform][:user]
-  group "root"
-  mode "0640"
-  variables(
-    :debug => node[:quantum][:debug],
-    :interface_driver => interface_driver,
-    :use_namespaces => "True",
-    :handle_internal_only_routers => "True",
-    :metadata_port => 9697,
-    :send_arp_for_ha => 3,
-    :periodic_interval => 40,
-    :periodic_fuzzy_delay => 5
-  )
-end
-
-dns_list = node[:dns][:forwarders].join(" ")
-
-# Ditto
-template "/etc/quantum/dhcp_agent.ini" do
-  source "dhcp_agent.ini.erb"
-  owner node[:quantum][:platform][:user]
-  group "root"
-  mode "0640"
-  variables(
-    :debug => node[:quantum][:debug],
-    :interface_driver => interface_driver,
-    :use_namespaces => "True",
-    :resync_interval => 5,
-    :dhcp_driver => "quantum.agent.linux.dhcp.Dnsmasq",
-    :dhcp_domain => node[:quantum][:dhcp_domain],
-    :enable_isolated_metadata => "True",
-    :enable_metadata_network => "False",
-    :nameservers => dns_list
-  )
-end
-
-# Double ditto.
-
-novas = search(:node, "roles:nova-multi-controller") || []
-if novas.length > 0
-  nova = novas[0]
-  nova = node if nova.name == node.name
-else
-  nova = node
-end
-metadata_host = nova[:fqdn]
-metadata_port = "8775"
-metadata_proxy_shared_secret = (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
-
-template "/etc/quantum/metadata_agent.ini" do
-  source "metadata_agent.ini.erb"
-  owner node[:quantum][:platform][:user]
-  group "root"
-  mode "0640"
-  variables(
-    :debug => node[:quantum][:debug],
-    :auth_url => keystone_service_url,
-    :auth_region => "RegionOne",
-    :admin_tenant_name => keystone_service_tenant,
-    :admin_user => keystone_service_user,
-    :admin_password => keystone_service_password,
-    :nova_metadata_host => metadata_host,
-    :nova_metadata_port => metadata_port,
-    :metadata_proxy_shared_secret => metadata_proxy_shared_secret
-  )
-end
-
-service node[:quantum][:platform][:metadata_agent_name] do
-  supports :status => true, :restart => true
-  action :enable
-  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-  subscribes :restart, resources("template[/etc/quantum/metadata_agent.ini]")
-end
-
-case node[:quantum][:networking_plugin]
-when "openvswitch"
-  directory "/etc/quantum/plugins/openvswitch/" do
-     mode 00775
-     owner node[:quantum][:platform][:user]
-     action :create
-     recursive true
-     not_if { node[:platform] == "suse" }
-  end
-when "linuxbridge"
-  directory "/etc/quantum/plugins/linuxbridge/" do
-     mode 00775
-     owner node[:quantum][:platform][:user]
-     action :create
-     recursive true
-     not_if { node[:platform] == "suse" }
-  end
-end
-
-unless node[:quantum][:use_gitrepo]
-  # no need to create link for plugin_cfg_path here; already handled in
-  # common_install recipe
-  service node[:quantum][:platform][:service_name] do
-    supports :status => true, :restart => true
-    action :enable
-    # no subscribes for :restart; this is handled by the
-    # "mark quantum-server as restart for post-install" ruby_block
-  end
-else
-  template "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini" do
-    source "ovs_quantum_plugin.ini.erb"
-    owner node[:quantum][:platform][:user]
-    group "root"
-    mode "0640"
-    variables(
-        :ovs_sql_connection => node[:quantum][:db][:sql_connection]
-    )
-  end
-  service quantum_service_name do
-    supports :status => true, :restart => true
-    action :enable
-    subscribes :restart, resources("template[/etc/quantum/api-paste.ini]")
-    subscribes :restart, resources("template[/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini]")
-    subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-  end
-end
-
-service node[:quantum][:platform][:dhcp_agent_name] do
-  supports :status => true, :restart => true
-  action :enable
-  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-  subscribes :restart, resources("template[/etc/quantum/dhcp_agent.ini]")
-end
-
-service node[:quantum][:platform][:l3_agent_name] do
-  supports :status => true, :restart => true
-  action :enable
-  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-  subscribes :restart, resources("template[/etc/quantum/l3_agent.ini]")
-end
-
-# This is some bad hack: we need to restart the server and the agent before
-# post_install_conf if there was a configuration change. We cannot use
-# :immediately to directly restart the services earlier, because they would be
-# started before all configuration files get written.
-services_to_restart = []
-
-ruby_block "mark the l3-agent as restart for post-install" do
-  block do
-    unless services_to_restart.include?(node[:quantum][:platform][:l3_agent_name])
-      services_to_restart << node[:quantum][:platform][:l3_agent_name]
-    end
-  end
-  action :nothing
-  subscribes :create, resources("template[/etc/quantum/l3_agent.ini]"), :immediately
-  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
-end
-
-ruby_block "mark quantum-server as restart for post-install" do
-  block do
-    _service_name = node[:quantum][:platform][:service_name]
-    _service_name = quantum_service_name if node[:quantum][:use_gitrepo]
-    unless services_to_restart.include?(_service_name)
-      services_to_restart << _service_name
-    end
-  end
-  action :nothing
-  subscribes :create, resources("template[/etc/quantum/api-paste.ini]"), :immediately
-  subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
-  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
-end
-
-ruby_block "mark quantum-agent as restart for post-install" do
-  block do
-    unless services_to_restart.include?(quantum_agent)
-      services_to_restart << quantum_agent
-    end
-  end
-  action :nothing
-  subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
-  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
-end
-
-ruby_block "restart services for post-install" do
-  block do
-    services_to_restart.each do |service|
-      Chef::Log.info("Restarting #{service}")
-      unless (platform?("ubuntu") && node.platform_version.to_f >= 10.04)
-        %x{/sbin/service #{service} restart}
-      else
-        %x{/sbin/restart #{service}}
-      end
-    end
-  end
-end
+service node[:quantum][:platform][:service] do
+  supports :status => true, :restart => true, :reload => true
+  subscribes :restart, "template[/etc/quantum/api-paste.ini]", :immediately
+  subscribes :restart, "template[/etc/quantum/quantum.conf]", :immediately
+end.run_action(:start)
 
 include_recipe "quantum::post_install_conf"
 
@@ -321,4 +180,3 @@ node[:quantum][:monitor] = {} if node[:quantum][:monitor].nil?
 node[:quantum][:monitor][:svcs] = [] if node[:quantum][:monitor][:svcs].nil?
 node[:quantum][:monitor][:svcs] << ["quantum"] if node[:quantum][:monitor][:svcs].empty?
 node.save
-

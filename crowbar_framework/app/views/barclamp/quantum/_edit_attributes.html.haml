@@ -22,6 +22,12 @@
       %p
         %label{ :for => :protocol }= t('.protocol')
         = select_tag :protocol, options_for_select([['HTTP','http'], ['HTTPS', 'https']], @proposal.raw_data['attributes'][@proposal.barclamp]["api"]["protocol"].to_s), :onchange => "update_value('api/protocol', 'protocol', 'string')"
+    %p
+      %label{ :for => :debug }= t('.debug')
+      = select_tag :debug, options_for_select([['true','true'], ['false', 'false']], @proposal.raw_data['attributes'][@proposal.barclamp]["debug"].to_s), :onchange => "update_value('debug', 'debug', 'boolean')"
+    %p
+      %label{ :for => :verbose }= t('.verbose')
+      = select_tag :verbose, options_for_select([['true','true'], ['false', 'false']], @proposal.raw_data['attributes'][@proposal.barclamp]["verbose"].to_s), :onchange => "update_value('verbose', 'verbose', 'boolean')"
 
     %div{ :id => :ssl_div }
       %p

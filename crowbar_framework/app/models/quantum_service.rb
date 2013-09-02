@@ -120,27 +120,4 @@ class QuantumService < ServiceObject
     end
   end
 
-  def apply_role_pre_chef_call(old_role, role, all_nodes)
-    @logger.debug("Quantum apply_role_pre_chef_call: entering #{all_nodes.inspect}")
-    return if all_nodes.empty?
-
-    net_svc = NetworkService.new @logger
-    network_proposal = ProposalObject.find_proposal(net_svc.bc_name, "default")
-    if network_proposal["attributes"]["network"]["networks"]["os_sdn"].nil?
-      raise I18n.t("barclamp.quantum.deploy.missing_os_sdn_network")
-    end
-
-    tnodes = role.override_attributes["quantum"]["elements"]["quantum-server"]
-    unless tnodes.nil? or tnodes.empty?
-      tnodes.each do |n|
-        net_svc.allocate_ip "default", "public", "host",n
-        if role.default_attributes["quantum"]["networking_mode"] == "gre"
-          net_svc.allocate_ip "default","os_sdn","host", n
-        else
-          net_svc.enable_interface "default", "nova_fixed", n
-        end
-      end
-    end
-    @logger.debug("Quantum apply_role_pre_chef_call: leaving")
-  end
 end

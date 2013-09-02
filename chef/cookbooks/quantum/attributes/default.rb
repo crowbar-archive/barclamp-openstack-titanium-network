@@ -55,45 +55,52 @@ default[:quantum][:quantum_server] = false
 case node["platform"]
 when "suse"
   default[:quantum][:platform] = {
-    :pkgs => [ "openstack-quantum-server",
-               "openstack-quantum-l3-agent",
-               "openstack-quantum-dhcp-agent",
-               "openstack-quantum-metadata-agent" ],
-    :service_name => "openstack-quantum",
-    :ovs_agent_pkg => "openstack-quantum-openvswitch-agent",
-    :ovs_agent_name => "openstack-quantum-openvswitch-agent",
+    :server => [ "openstack-quantum-server" ],
+    :agents => [ "openstack-quantum-l3-agent", "openstack-quantum-dhcp-agent", "openstack-quantum-metadata-agent" ],
+    :service => "openstack-quantum",
+    :plugins => {
+        "openvswitch" => ""
+    },
+
     :lb_agent_pkg => "openstack-quantum-linuxbridge-agent",
     :lb_agent_name => "openstack-quantum-linuxbridge-agent",
     :metadata_agent_name => "openstack-quantum-metadata-agent",
     :dhcp_agent_name => "openstack-quantum-dhcp-agent",
     :l3_agent_name => "openstack-quantum-l3-agent",
-    :ovs_pkgs => [ "openvswitch",
-                   "openvswitch-switch",
-                   "openvswitch-kmp-default" ],
+    :ovs_pkgs => [ "openvswitch", "openvswitch-switch", "openvswitch-kmp-default" ],
     :user => "openstack-quantum",
     :ovs_modprobe => "modprobe openvswitch",
     :quantum_rootwrap_sudo_template => "/etc/sudoers.d/openstack-quantum"
   }
 else
   default[:quantum][:platform] = {
-    :pkgs => [ "quantum-server",
-               "quantum-l3-agent",
-               "quantum-dhcp-agent",
-               "quantum-plugin-openvswitch",
-               "quantum-metadata-agent" ],
-    :service_name => "quantum-server",
-    :ovs_agent_pkg => "quantum-plugin-openvswitch-agent",
-    :ovs_agent_name => "quantum-plugin-openvswitch-agent",
-    :lb_agent_pkg => "quantum-plugin-linuxbridge-agent",
-    :lb_agent_name => "quantum-plugin-linuxbridge-agent",
-    :metadata_agent_name => "quantum-metadata-agent",
-    :dhcp_agent_name => "quantum-dhcp-agent",
-    :l3_agent_name => "quantum-l3-agent",
-    :ovs_pkgs => [ "linux-headers-#{`uname -r`.strip}",
-                   "openvswitch-datapath-dkms",
-                   "openvswitch-switch" ],
     :user => "quantum",
-    :ovs_modprobe => "modprobe openvswitch",
+    :server => "quantum-server",
+    :service => "quantum-server",
+    :plugins => {
+        "openvswitch" => ["quantum-plugin-openvswitch"],
+        "linuxbridge" => ["quantum-plugin-linuxbridge"]
+    },
+    :agents => {
+        "quantum-plugin-openvswitch-agent" => {
+            :packages => [
+                "quantum-plugin-openvswitch-agent",
+                "linux-headers-#{`uname -r`.strip}",
+                "openvswitch-datapath-dkms",
+                "openvswitch-switch"
+            ],
+            :commands => {"modprobe openvswitch" => "test -d /sys/module/openvswitch"}
+        },
+        "quantum-dhcp-agent" => {
+            :packages => ["quantum-dhcp-agent"]
+        },
+        "quantum-l3-agent" => {
+            :packages => ["quantum-l3-agent"]
+        },
+        "quantum-metadata-agent" => {
+            :packages => ["quantum-metadata-agent"]
+        }
+    },
     :quantum_rootwrap_sudo_template => "/etc/sudoers.d/quantum-rootwrap"
   }
 end

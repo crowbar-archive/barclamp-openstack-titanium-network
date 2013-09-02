@@ -22,17 +22,18 @@ bind_port = <%= @service_port %>
 use_syslog = <%= @use_syslog ? "True" : "False" %>
 
 # Facility to use. If unset defaults to LOG_USER.
+
 # syslog_log_facility = LOG_LOCAL0
 
 
-<% if @rabbit_settings -%>
-rabbit_host=<%= @rabbit_settings[:address] %>
-<% unless @rabbit_settings[:port].nil? -%>
-rabbit_port=<%= @rabbit_settings[:port] %>
+<% if @rabbit -%>
+rabbit_host=<%= @rabbit[:address] %>
+<% unless @rabbit[:port].nil? -%>
+rabbit_port=<%= @rabbit[:port] %>
 <% end -%>
-rabbit_userid=<%= @rabbit_settings[:user] %>
-rabbit_password=<%= @rabbit_settings[:password] %>
-rabbit_virtual_host=<%= @rabbit_settings[:vhost] %>
+rabbit_userid=<%= @rabbit[:user] %>
+rabbit_password=<%= @rabbit[:password] %>
+rabbit_virtual_host=<%= @rabbit[:vhost] %>
 <% end -%>
 
 <% if @networking_plugin == 'openvswitch' -%>
@@ -40,7 +41,6 @@ core_plugin = quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2
 <% elsif @networking_plugin == 'linuxbridge' -%>
 core_plugin = quantum.plugins.linuxbridge.lb_quantum_plugin.LinuxBridgePluginV2
 <% end -%>
-
 
 #================dhcp agent====================
 state_path = /var/lib/quantum/
@@ -70,17 +70,20 @@ network_auto_schedule = True
 
 <% if @quantum_server -%>
 #=======================================l3 agent======================
-auth_url = <%= @keystone_protocol %>://<%= @keystone_host %>:<%= @keystone_admin_port %>/v2.0
+auth_url = <%= @keystone[:protocol] %>://<%= @keystone[:host] %>:<%= @keystone[:admin_port] %>/v2.0
 auth_region = RegionOne
-admin_tenant_name = <%= @keystone_service_tenant %>
-admin_user = <%= @keystone_service_user %>
-admin_password = <%= @keystone_service_password %>
+admin_tenant_name = <%= @keystone[:service_tenant] %>
+admin_user = <%= @keystone[:service_user] %>
+admin_password = <%= @keystone[:service_password] %>
 interface_driver = <%= @interface_driver %>
-external_network_bridge = <%= @external_network_bridge %>
 router_scheduler_driver = quantum.scheduler.l3_agent_scheduler.ChanceScheduler
 router_auto_schedule = True
-metadata_ip = <%= @metadata_host %>
-metadata_port = <%= @metadata_port %>
+
+# TODO: return on nove testing
+<% if  @metadata %>
+metadata_ip = <%= @metadata[:host] %>
+metadata_port = <%= @metadata[:port] %>
+<% end %>
 
 # Enable SSL on the API server
 use_ssl = <%= @ssl_enabled ? "True" : "False" %>
@@ -100,6 +103,8 @@ ssl_ca_file = <%= @ssl_ca_file %>
 <% else -%>
 #ssl_ca_file = /path/to/cafile
 <% end -%>
+<% else %>
+external_network_bridge = <%= @external_network_bridge %>
 <% end -%>
 ################# sql section will be used for OVS plugin config
 [DATABASE]
@@ -150,7 +155,7 @@ root_helper=sudo <%=@rootwrap_bin%> /etc/quantum/rootwrap.conf
 
 <% if @networking_mode == 'vlan' -%>
 tenant_network_type = vlan
-network_vlan_ranges = physnet1:<%= @vlan_start %>:<%= @vlan_end %>
+network_vlan_ranges = physnet1:<%= @vlan[:start] %>:<%= @vlan[:end] %>
 <% elsif @networking_mode == 'gre' -%>
 tenant_network_type = gre
 tunnel_bridge = <%=@physnet%>
@@ -259,7 +264,7 @@ firewall_driver = quantum.agent.linux.iptables_firewall.IptablesFirewallDriver
 #
 # Default: tenant_network_type = local
 # Example: tenant_network_type = vlan
-tenant_network_type = vlan
+# tenant_network_type = vlan
 
 # (ListOpt) Comma-separated list of
 # <physical_network>[:<vlan_min>:<vlan_max>] tuples enumerating ranges
@@ -271,8 +276,7 @@ tenant_network_type = vlan
 #
 # Default: network_vlan_ranges =
 # Example: network_vlan_ranges = physnet1:1000:2999
-network_vlan_ranges = physnet1:<%= @vlan_start %>:<%= @vlan_end %>
-
+network_vlan_ranges = physnet1:<%= @vlan[:start] %>:<%= @vlan[:end] %>
 
 [LINUX_BRIDGE]
 # (ListOpt) Comma-separated list of
