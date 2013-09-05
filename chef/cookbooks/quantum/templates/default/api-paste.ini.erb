@@ -13,12 +13,12 @@ paste.filter_factory = quantum.auth:QuantumKeystoneContext.factory
 
 [filter:authtoken]
 paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
-auth_host = <%= @keystone_host %>
-auth_port = <%= @keystone_admin_port %>
-auth_protocol = <%= @keystone_protocol %>
-admin_user = <%= @keystone_service_user %>
-admin_password = <%= @keystone_service_password %>
-admin_tenant_name = <%= @keystone_service_tenant %>
+auth_host = <%= @keystone[:host] %>
+auth_port = <%= @keystone[:admin_port] %>
+auth_protocol = <%= @keystone[:protocol] %>
+admin_user = <%= @keystone[:service_user] %>
+admin_password = <%= @keystone[:service_password] %>
+admin_tenant_name = <%= @keystone[:service_tenant] %>
 <%= "signing_dir = /var/lib/quantum/keystone-signin" if node[:platform] == "suse" %>
 
 [filter:extensions]

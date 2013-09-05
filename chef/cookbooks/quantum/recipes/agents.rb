@@ -128,10 +128,11 @@ end
 nova = search(:node, "roles:nova-multi-controller").first || node
 nova = node if nova.name == node.name
 
-metadata_host = nova[:fqdn]
-metadata_port = "8775"
-metadata_proxy_shared_secret = (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
-
+metadata_settings = {
+  :host => Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address,
+  :port => "8775",
+  :secret => (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
+}
 
 env_filter = " AND keystone_config_environment:keystone-config-#{quantum[:quantum][:keystone_instance]}"
 keystones = search(:node, "recipes:keystone\\:\\:server#{env_filter}") || []
@@ -280,10 +281,10 @@ template "/etc/quantum/quantum.conf" do
       :per_tenant_vlan => (quantum[:quantum][:networking_mode] == 'vlan' ? true : false),
       :physnet => physnet,
       :interface_driver => interface_driver,
-      :external_network_bridge => external_network_bridge
+      :external_network_bridge => external_network_bridge,
+      :metadata => metadata_settings
   )
   # TODO: return this if really needed
-  #:metadata => metadata,
   notifies :restart, "service[quantum-l3-agent]", :immediately
   notifies :restart, "service[quantum-dhcp-agent]", :immediately
   notifies :restart, "service[quantum-metadata-agent]", :immediately

@@ -154,8 +154,6 @@ template "/etc/quantum/quantum.conf" do
     :physnet => physnet,
     :interface_driver => interface_driver
   )
-  # TODO: return this if really needed
-  #:metadata => metadata,
 end
 
 template "/etc/quantum/api-paste.ini" do
