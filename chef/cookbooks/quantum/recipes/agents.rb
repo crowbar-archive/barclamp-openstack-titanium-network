@@ -1,9 +1,6 @@
 # recipe must be call from nova-compute node to install agents
 quantum = search(:node, "roles:quantum-server AND quantum_config_environment:quantum-config-#{node[:nova][:quantum_instance]}").first
 
-puts ">>> QUANTUM: #{quantum.name}"
-puts ">>> COMPUTE: #{node.name}"
-
 # install agents
 
 unless quantum[:quantum][:use_gitrepo]
@@ -129,9 +126,11 @@ nova = search(:node, "roles:nova-multi-controller").first || node
 nova = node if nova.name == node.name
 
 metadata_settings = {
-  :host => Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address,
-  :port => "8775",
-  :secret => (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
+    :debug => quantum[:quantum][:debug],
+    :region => "RegionOne",
+    :host => Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address,
+    :port => "8775",
+    :secret => (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
 }
 
 env_filter = " AND keystone_config_environment:keystone-config-#{quantum[:quantum][:keystone_instance]}"
@@ -212,9 +211,7 @@ template "/etc/quantum/metadata_agent.ini" do
       :debug => quantum[:quantum][:debug],
       :verbose => quantum[:quantum][:verbose],
       :keystone => keystone_settings,
-      :nova_metadata_host => metadata_host,
-      :nova_metadata_port => metadata_port,
-      :metadata_proxy_shared_secret => metadata_proxy_shared_secret
+      :metadata => metadata_settings
   )
   notifies :restart, "service[quantum-metadata-agent]", :immediately
 end
