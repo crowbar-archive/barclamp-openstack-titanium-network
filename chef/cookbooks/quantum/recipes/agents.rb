@@ -11,6 +11,12 @@ unless quantum[:quantum][:use_gitrepo]
         supports :status => true, :restart => true, :reload => true
         action :nothing
       end
+      # hack to properly load openvswith module in Ubuntu
+      if quantum[:quantum][:networking_plugin] == "openvswitch" and pkg == "openvswitch-datapath-dkms" and node.platform == "ubuntu"
+        execute "rmmod openvswitch" do
+          only_if "modinfo openvswitch -Fintree | grep Y"
+        end
+      end
       package pkg do
         action :install
         notifies :stop, "service[#{name}]", :immediately
