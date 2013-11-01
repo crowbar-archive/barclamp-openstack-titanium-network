@@ -1,0 +1,82 @@
+# Copyright 2011, Dell, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Author: Richard Yuan
+#
+
+barclamp:
+  name: quantum
+  display: Quantum 
+  description: 'OpenStack Networking: Pluggable, scalable, API-driven network and IP management'
+  version: 0
+  requires:
+    - database
+    - rabbitmq
+    - keystone
+  member:
+    - openstack
+
+crowbar:
+  layout: 1
+  order: 94
+  run_order: 94
+  chef_order: 94
+  proposal_schema_version: 2
+
+locale_additions:
+  en:
+    barclamp:
+      quantum:
+        deploy:
+          missing_os_sdn_network: The os_sdn network must be defined in bc-template-network.json
+        edit_deployment: 
+          deployment: Deployment
+        edit_attributes:
+          database_instance: Database Instance
+          rabbitmq_instance: RabbitMQ 
+          keystone_instance: Keystone 
+          attributes: Attributes
+          dhcp_domain: DHCP Domain
+          networking_plugin: Plugin
+          networking_mode: Mode
+          protocol: Protocol
+          ssl_insecure: SSL Certificate is insecure (for instance, auto-signed)
+          ssl_certfile: SSL Certificate File
+          ssl_keyfile: SSL (Private) Key File
+          ssl_generate_certs: Generate (self-signed) certificates (implies insecure)
+          ssl_cert_required: Require Client Certificate
+          ssl_ca_certs: SSL CA Certificates File
+
+debs:
+  ubuntu-12.04:
+    repos:
+      - deb http://ubuntu-cloud.archive.canonical.com/ubuntu precise-updates/grizzly main
+      - deb http://ubuntu-cloud.archive.canonical.com/ubuntu precise-proposed/grizzly main
+  pkgs:
+    - openvswitch-common
+    - openvswitch-switch
+    - python-quantum
+    - python-quantumclient
+    - quantum-common
+    - quantum-dhcp-agent
+    - quantum-l3-agent
+    - quantum-metadata-agent
+    - quantum-plugin-linuxbridge
+    - quantum-plugin-linuxbridge-agent
+    - quantum-plugin-openvswitch
+    - quantum-plugin-openvswitch-agent
+    - quantum-server
+
+git_repo:
+  - quantum https://github.com/openstack/quantum.git stable/grizzly
