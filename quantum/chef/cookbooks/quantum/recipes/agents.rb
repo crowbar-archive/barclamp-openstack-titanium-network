@@ -228,7 +228,7 @@ vlan = {
 }
 
 env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{quantum[:quantum][:rabbitmq_instance]}"
-rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
+rabbits = search(:node, "roles:rabbitmq#{env_filter}") || []
 if rabbits.length > 0
   rabbit = rabbits[0]
   rabbit = node if rabbit.name == node.name
