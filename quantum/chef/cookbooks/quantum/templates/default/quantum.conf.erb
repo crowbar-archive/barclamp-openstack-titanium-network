@@ -25,15 +25,15 @@ use_syslog = <%= @use_syslog ? "True" : "False" %>
 
 # syslog_log_facility = LOG_LOCAL0
 
-
-<% if @rabbit -%>
-rabbit_host=<%= @rabbit[:address] %>
-<% unless @rabbit[:port].nil? -%>
-rabbit_port=<%= @rabbit[:port] %>
+# RABBITMQ
+<% if @rabbit_settings -%>
+rabbit_hosts=<%= @rabbit_settings[:hosts] %>
+<% unless @rabbit_settings[:port].nil? -%>
+rabbit_port=<%= @rabbit_settings[:port] %>
 <% end -%>
-rabbit_userid=<%= @rabbit[:user] %>
-rabbit_password=<%= @rabbit[:password] %>
-rabbit_virtual_host=<%= @rabbit[:vhost] %>
+rabbit_userid=<%= @rabbit_settings[:user] %>
+rabbit_password=<%= @rabbit_settings[:password] %>
+rabbit_virtual_host=<%= @rabbit_settings[:vhost] %>
 <% end -%>
 
 <% if @networking_plugin == 'openvswitch' -%>

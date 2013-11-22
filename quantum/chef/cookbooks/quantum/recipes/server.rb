@@ -12,6 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# add VIP - sak
+admin_vip = node[:haproxy][:admin_ip]
+public_vip = node[:haproxy][:public_ip]
+#end of change
+
+# replace with the below
+haproxy = search(:node, "roles:haproxy").first
+if haproxy.length > 0
+  Chef::Log.info("admin vip at #{haproxy}")
+  vip = haproxy.haproxy.admin_ip
+end
+
+Chef::Log.info("============================================")
+Chef::Log.info("admin vip at #{vip}")
+Chef::Log.info("============================================")
+#end of change
+
 
 service node[:quantum][:platform][:service] do
   supports :status => true, :restart => true, :reload => true
@@ -88,8 +105,13 @@ else
 end
 
 keystone_settings = {
-  :host => keystone[:fqdn],
-  :protocol => keystone["keystone"]["api"]["protocol"],
+  # use VIP -sak
+  #:host => keystone[:fqdn],
+  #:protocol => keystone["keystone"]["api"]["protocol"],
+  :host => admin_vip,
+  # keystone does not have this attribute set so using quantum's
+  :protocol => node[:quantum][:api][:protocol],
+  # end of change
   :service_port => keystone["keystone"]["api"]["service_port"],
   :admin_port => keystone["keystone"]["api"]["admin_port"],
   :service_tenant => keystone["keystone"]["service"]["tenant"],
@@ -97,6 +119,8 @@ keystone_settings = {
   :service_password => node["quantum"]["service_password"]
 }
 
+# rabbitmq integration - haproxy - sak
+=begin
 env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{node[:quantum][:rabbitmq_instance]}"
 rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
 if rabbits.length > 0
@@ -105,6 +129,7 @@ if rabbits.length > 0
 else
   rabbit = node
 end
+
 rabbit_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit, "admin").address
 Chef::Log.info("Rabbit server found at #{rabbit_address}")
 rabbit_settings = {
@@ -114,11 +139,49 @@ rabbit_settings = {
     :password => rabbit[:rabbitmq][:password],
     :vhost => rabbit[:rabbitmq][:vhost]
 }
+=end
+
+# replaced with the below - sak
+barclamp_name = "rabbitmq"
+instance_var_name = "rabbitmq_instance"
+begin
+  proposal_name = "bc-" + barclamp_name + "-" + node["quantumr"]["#{instance_var_name}"]
+  proposal_databag = data_bag_item('crowbar', proposal_name)
+  cont1_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][0]
+  cont2_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][1]
+  cont3_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][2]
+  admin_network_databag = data_bag_item('crowbar', 'admin_network')
+  cont1_admin_ip = admin_network_databag["allocated_by_name"]["#{cont1_name}"]["address"]
+  cont2_admin_ip = admin_network_databag["allocated_by_name"]["#{cont2_name}"]["address"]
+  cont3_admin_ip = admin_network_databag["allocated_by_name"]["#{cont3_name}"]["address"]
+  
+  # and construct a hosts string
+  rabbitmq_port = ":" + node[:rabbitmq][:port].to_s
+  rabbit_address = cont1_admin_ip + rabbitmq_port + "," + cont2_admin_ip + rabbitmq_port + "," + cont3_admin_ip + rabbitmq_port
+
+  rabbit_settings = {
+  :hosts => rabbit_address,
+  :port => rabbit[:rabbitmq][:port],
+  :user => node[:rabbitmq][:user],
+  :password => node[:rabbitmq][:password],
+  :vhost => node[:rabbitmq][:vhost]
+  }
+rescue
+  # if databag not found
+  rabbit_settings = nil
+end
+# end of change
+
 
 vlan = {
     :start => node[:network][:networks][:nova_fixed][:vlan],
     :end => node[:network][:networks][:nova_fixed][:vlan] + 2000
 }
+
+# add IP address - sak
+my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "admin").address
+node[:quantum][:api][:service_host] = my_ipaddress
+#end change
 
 template "/etc/quantum/quantum.conf" do
   cookbook "quantum"
@@ -148,7 +211,7 @@ template "/etc/quantum/quantum.conf" do
     :rootwrap_bin =>  node[:quantum][:rootwrap],
     :quantum_server => true,
     :keystone => keystone_settings,
-    :rabbit => rabbit_settings,
+    :rabbit_settings => rabbit_settings,
     :vlan => vlan,
     :per_tenant_vlan => (node[:quantum][:networking_mode] == 'vlan' ? true : false),
     :physnet => physnet,

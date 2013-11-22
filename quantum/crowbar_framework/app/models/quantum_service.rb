@@ -25,6 +25,8 @@ class QuantumService < ServiceObject
     false
   end
 
+# commented out for haproxy and percona - sak
+=begin
   def proposal_dependencies(role)
     answer = []
     if role.default_attributes["quantum"]["use_gitrepo"]
@@ -35,6 +37,8 @@ class QuantumService < ServiceObject
     answer << { "barclamp" => "keystone", "inst" => role.default_attributes["quantum"]["keystone_instance"] }
     answer
   end
+=end
+# end of change
 
   def create_proposal
     base = super
@@ -57,7 +61,8 @@ class QuantumService < ServiceObject
       @logger.info("#{@bc_name} create_proposal: no git found")
     end
 
-
+# commented out for percona - sak
+=begin
     base["attributes"]["quantum"]["database_instance"] = ""
     begin
       databaseService = DatabaseService.new(@logger)
@@ -80,6 +85,8 @@ class QuantumService < ServiceObject
     if base["attributes"]["quantum"]["database_instance"] == ""
       raise(I18n.t('model.service.dependency_missing', :name => @bc_name, :dependson => "database")) 
     end
+=end
+# end of change
 
     base["deployment"]["quantum"]["elements"] = {
         "quantum-server" => [ nodes.first[:fqdn] ]
