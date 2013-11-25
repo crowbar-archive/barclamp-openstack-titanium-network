@@ -247,47 +247,28 @@ vlan = {
     :end => node[:network][:networks][:nova_fixed][:vlan] + 2000
 }
 
-# rabbitmq integration - haproxy - sak
-=begin
-env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{quantum[:quantum][:rabbitmq_instance]}"
-rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
-if rabbits.length > 0
-  rabbit = rabbits[0]
-  rabbit = node if rabbit.name == node.name
-else
-  rabbit = node
-end
-rabbit_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit, "admin").address
-Chef::Log.info("Rabbit server found at #{rabbit_address}")
-rabbit_settings = {
-    :address => rabbit_address,
-    :port => rabbit[:rabbitmq][:port],
-    :user => rabbit[:rabbitmq][:user],
-    :password => rabbit[:rabbitmq][:password],
-    :vhost => rabbit[:rabbitmq][:vhost]
-}
-=end
-#end of change
-# replaced with the below - sak
+# Retrieve RabbitMQ attributes
 
 Chef::Log.info("============== Quantum agents recipe : Builds rabbitmq string")
-env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{quantum[:quantum][:rabbitmq_instance]}"
-rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
+rabbits = search(:node, "roles:rabbitmq") || []
 if rabbits.length > 0
-  Chef::Log.info("============= RabbitMq node has been found") 
   rabbit = rabbits[0]
   rabbit = node if rabbit.name == node.name
 else
   rabbit = node
 end
 rabbitmq_port = rabbit[:rabbitmq][:port]
-rabbitmq_hosts = rabbits[0]["ipaddress"] + ":" + rabbitmq_port.to_s + rabbits[1]["ipaddress"] + ":" + rabbitmq_port.to_s + rabbits[2]["ipaddress"] + ":" + rabbitmq_port.to_s 
+rabbit1_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[0], "admin").address
+rabbit2_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[1], "admin").address
+rabbit3_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[2], "admin").address
 
-Chef::Log.info("Rabbit nodes found at #{rabbitmq_hosts}")
-Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:port]}")
-Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:user]}")
-Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:password]}")
-Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:vhost]}")
+rabbitmq_hosts = rabbit1_ip + ":" + rabbitmq_port.to_s + "," + rabbit2_ip + ":" + rabbitmq_port.to_s + "," + rabbit3_ip + ":" + rabbitmq_port.to_s
+
+Chef::Log.info("Rabbit nodes/ports  #{rabbitmq_hosts}")
+Chef::Log.info("Rabbit port #{rabbit[:rabbitmq][:port]}")
+Chef::Log.info("Rabbit userid #{rabbit[:rabbitmq][:user]}")
+Chef::Log.info("Rabbit password #{rabbit[:rabbitmq][:password]}")
+Chef::Log.info("Rabbit vhost #{rabbit[:rabbitmq][:vhost]}")
 rabbit_settings = {
     :address => rabbitmq_hosts,
     :port => rabbit[:rabbitmq][:port],

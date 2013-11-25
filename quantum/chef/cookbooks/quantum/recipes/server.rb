@@ -13,43 +13,6 @@
 # limitations under the License.
 #
 
-# Temp rabbitmq
-
-
-Chef::Log.info("============== Quantum agents recipe : Builds rabbitmq string")
-rabbits = search(:node, "roles:rabbitmq") || []
-if rabbits.length > 0
-  rabbit = rabbits[0]
-  rabbit = node if rabbit.name == node.name
-else
-  rabbit = node
-end
-rabbitmq_port = rabbit[:rabbitmq][:port]
-rabbit1_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[0], "admin").address
-rabbit2_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[1], "admin").address
-rabbit3_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[2], "admin").address
-rabbitmq_hosts = rabbit1_ip + ":" + rabbitmq_port.to_s + "," + rabbit2_ip + ":" + rabbitmq_port.to_s + "," + rabbit3_ip + ":" + rabbitmq_port.to_s
-
-Chef::Log.info("Rabbit nodes/ports  #{rabbitmq_hosts}")
-Chef::Log.info("Rabbit port #{rabbit[:rabbitmq][:port]}")
-Chef::Log.info("Rabbit userid #{rabbit[:rabbitmq][:user]}")
-Chef::Log.info("Rabbit password #{rabbit[:rabbitmq][:password]}")
-Chef::Log.info("Rabbit vhost #{rabbit[:rabbitmq][:vhost]}")
-rabbit_settings = {
-    :address => rabbitmq_hosts,
-    :port => rabbit[:rabbitmq][:port],
-    :user => rabbit[:rabbitmq][:user],
-    :password => rabbit[:rabbitmq][:password],
-    :vhost => rabbit[:rabbitmq][:vhost]
-}
-
-
-#############################################################################################################
-
-
-
-
-
 # add VIP - sak
 admin_vip = node[:haproxy][:admin_ip]
 public_vip = node[:haproxy][:public_ip]
