@@ -246,29 +246,31 @@ vlan = {
     :end => node[:network][:networks][:nova_fixed][:vlan] + 2000
 }
 
-# Retrieve RabbitMQ attributes
+# Retrieves RabbitMQ attributes and populates quantum.conf
+begin
+  rabbits = search(:node, "roles:rabbitmq") || []
+  if rabbits.length > 0
+    rabbit = rabbits[0]
+    rabbit = node if rabbit.name == node.name
+  else
+    rabbit = node
+  end
 
-rabbits = search(:node, "roles:rabbitmq") || []
-if rabbits.length > 0
-  rabbit = rabbits[0]
-  rabbit = node if rabbit.name == node.name
-else
-  rabbit = node
+  rabbitmq_port = rabbit[:rabbitmq][:port].to_s
+
+  rabbitmq_hosts = ""
+  rabbits.each do |rabbit_node|
+    rabbitmq_hosts += Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit_node, "admin").address + ":" + rabbit_node[:rabbitmq][:port].to_s + ","
+  end
+
+  rabbit_settings = {
+      :address => rabbitmq_hosts[0..-2],
+      :port => rabbit[:rabbitmq][:port],
+      :user => rabbit[:rabbitmq][:user],
+      :password => rabbit[:rabbitmq][:password],
+      :vhost => rabbit[:rabbitmq][:vhost]
+  }
 end
-rabbitmq_port = rabbit[:rabbitmq][:port]
-rabbit1_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[0], "admin").address
-rabbit2_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[1], "admin").address
-rabbit3_ip = my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbits[2], "admin").address
-
-rabbitmq_hosts = rabbit1_ip + ":" + rabbitmq_port.to_s + "," + rabbit2_ip + ":" + rabbitmq_port.to_s + "," + rabbit3_ip + ":" + rabbitmq_port.to_s
-
-rabbit_settings = {
-    :address => rabbitmq_hosts,
-    :port => rabbit[:rabbitmq][:port],
-    :user => rabbit[:rabbitmq][:user],
-    :password => rabbit[:rabbitmq][:password],
-    :vhost => rabbit[:rabbitmq][:vhost]
-}
 
 
 # configure Quantum
