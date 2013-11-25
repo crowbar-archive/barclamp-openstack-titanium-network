@@ -93,6 +93,11 @@ class QuantumService < ServiceObject
     } unless nodes.nil? or nodes.length ==0
 
     base["attributes"]["quantum"]["service_password"] = '%012d' % rand(1e12)
+    # Set a common password for quantum database user 
+    base["attributes"]["quantum"]["db"]["password"] = random_password
+    # Set a common password for ovs database user 
+    base["attributes"]["quantum"]["db"]["ovs_password"] = random_password
+
 
     insts = ["Keystone", "Rabbitmq"]
 

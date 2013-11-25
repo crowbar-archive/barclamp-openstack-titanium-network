@@ -43,7 +43,9 @@
         "database": "quantum",
         "user": "quantum",
         "ovs_database": "ovs",
-        "ovs_user": "ovs"
+        "ovs_user": "ovs",
+        "password": "",
+        "ovs_password": ""
       },
       "sql": {
         "idle_timeout": 30,

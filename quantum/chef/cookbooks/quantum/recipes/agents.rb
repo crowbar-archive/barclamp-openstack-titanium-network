@@ -6,6 +6,7 @@ if haproxy.length > 0
 end
 
 Chef::Log.info("============================================")
+Chef::Log.info("   ******      AGENTS    *******   ")
 Chef::Log.info("admin vip at #{vip}")
 Chef::Log.info("============================================")
 #end of change
@@ -268,35 +269,32 @@ rabbit_settings = {
 =end
 #end of change
 # replaced with the below - sak
-barclamp_name = "rabbitmq"
-instance_var_name = "rabbitmq_instance"
-begin
-  proposal_name = "bc-" + barclamp_name + "-" + node["quantumr"]["#{instance_var_name}"]
-  proposal_databag = data_bag_item('crowbar', proposal_name)
-  cont1_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][0]
-  cont2_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][1]
-  cont3_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][2]
-  admin_network_databag = data_bag_item('crowbar', 'admin_network')
-  cont1_admin_ip = admin_network_databag["allocated_by_name"]["#{cont1_name}"]["address"]
-  cont2_admin_ip = admin_network_databag["allocated_by_name"]["#{cont2_name}"]["address"]
-  cont3_admin_ip = admin_network_databag["allocated_by_name"]["#{cont3_name}"]["address"]
-  
-  # and construct a hosts string
-  rabbitmq_port = ":" + node[:rabbitmq][:port].to_s
-  rabbit_address = cont1_admin_ip + rabbitmq_port + "," + cont2_admin_ip + rabbitmq_port + "," + cont3_admin_ip + rabbitmq_port
 
-  rabbit_settings = {
-  :address => rabbit_address,
-  :port => rabbit[:rabbitmq][:port],
-  :user => node[:rabbitmq][:user],
-  :password => node[:rabbitmq][:password],
-  :vhost => node[:rabbitmq][:vhost]
-  }
-rescue
-  # if databag not found
-  rabbit_settings = nil
+Chef::Log.info("============== Quantum agents recipe : Builds rabbitmq string")
+env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{quantum[:quantum][:rabbitmq_instance]}"
+rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
+if rabbits.length > 0
+  Chef::Log.info("============= RabbitMq node has been found") 
+  rabbit = rabbits[0]
+  rabbit = node if rabbit.name == node.name
+else
+  rabbit = node
 end
-# end of change
+rabbitmq_port = rabbit[:rabbitmq][:port]
+rabbitmq_hosts = rabbits[0]["ipaddress"] + ":" + rabbitmq_port.to_s + rabbits[1]["ipaddress"] + ":" + rabbitmq_port.to_s + rabbits[2]["ipaddress"] + ":" + rabbitmq_port.to_s 
+
+Chef::Log.info("Rabbit nodes found at #{rabbitmq_hosts}")
+Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:port]}")
+Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:user]}")
+Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:password]}")
+Chef::Log.info("Rabbit nodes found at #{rabbit[:rabbitmq][:vhost]}")
+rabbit_settings = {
+    :address => rabbitmq_hosts,
+    :port => rabbit[:rabbitmq][:port],
+    :user => rabbit[:rabbitmq][:user],
+    :password => rabbit[:rabbitmq][:password],
+    :vhost => rabbit[:rabbitmq][:vhost]
+}
 
 
 # configure Quantum
