@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 # add VIP - sak
 admin_vip = node[:haproxy][:admin_ip]
 public_vip = node[:haproxy][:public_ip]
@@ -119,59 +120,32 @@ keystone_settings = {
   :service_password => node["quantum"]["service_password"]
 }
 
-# rabbitmq integration - haproxy - sak
-=begin
-env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{node[:quantum][:rabbitmq_instance]}"
-rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
-if rabbits.length > 0
-  rabbit = rabbits[0]
-  rabbit = node if rabbit.name == node.name
-else
-  rabbit = node
-end
 
-rabbit_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit, "admin").address
-Chef::Log.info("Rabbit server found at #{rabbit_address}")
-rabbit_settings = {
-    :address => rabbit_address,
-    :port => rabbit[:rabbitmq][:port],
-    :user => rabbit[:rabbitmq][:user],
-    :password => rabbit[:rabbitmq][:password],
-    :vhost => rabbit[:rabbitmq][:vhost]
-}
-=end
-
-# replaced with the below - sak
-barclamp_name = "rabbitmq"
-instance_var_name = "rabbitmq_instance"
+# Retrieves RabbitMQ attributes and populates quantum.conf
 begin
-  proposal_name = "bc-" + barclamp_name + "-" + node["quantumr"]["#{instance_var_name}"]
-  proposal_databag = data_bag_item('crowbar', proposal_name)
-  cont1_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][0]
-  cont2_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][1]
-  cont3_name = proposal_databag["deployment"]["#{barclamp_name}"]["elements"]["#{barclamp_name}"][2]
-  admin_network_databag = data_bag_item('crowbar', 'admin_network')
-  cont1_admin_ip = admin_network_databag["allocated_by_name"]["#{cont1_name}"]["address"]
-  cont2_admin_ip = admin_network_databag["allocated_by_name"]["#{cont2_name}"]["address"]
-  cont3_admin_ip = admin_network_databag["allocated_by_name"]["#{cont3_name}"]["address"]
+  rabbits = search(:node, "roles:rabbitmq") || []
+  if rabbits.length > 0
+    rabbit = rabbits[0]
+    rabbit = node if rabbit.name == node.name
+  else
+    rabbit = node
+  end
+
+  rabbitmq_port = rabbit[:rabbitmq][:port].to_s
   
-  # and construct a hosts string
-  rabbitmq_port = ":" + node[:rabbitmq][:port].to_s
-  rabbit_address = cont1_admin_ip + rabbitmq_port + "," + cont2_admin_ip + rabbitmq_port + "," + cont3_admin_ip + rabbitmq_port
-
+  rabbitmq_hosts = ""
+  rabbits.each do |rabbit_node|
+    rabbitmq_hosts += Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit_node, "admin").address + ":" + rabbit_node[:rabbitmq][:port].to_s + "," 
+  end
+  
   rabbit_settings = {
-  :hosts => rabbit_address,
-  :port => rabbit[:rabbitmq][:port],
-  :user => node[:rabbitmq][:user],
-  :password => node[:rabbitmq][:password],
-  :vhost => node[:rabbitmq][:vhost]
+      :address => rabbitmq_hosts[0..-2],
+      :port => rabbit[:rabbitmq][:port],
+      :user => rabbit[:rabbitmq][:user],
+      :password => rabbit[:rabbitmq][:password],
+      :vhost => rabbit[:rabbitmq][:vhost]
   }
-rescue
-  # if databag not found
-  rabbit_settings = nil
 end
-# end of change
-
 
 vlan = {
     :start => node[:network][:networks][:nova_fixed][:vlan],

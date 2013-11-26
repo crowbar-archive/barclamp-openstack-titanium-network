@@ -46,9 +46,6 @@ url_scheme = backend_name
 
 
 ::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
-# hard code passcode temp - sak
-node.set_unless['quantum']['db']['password'] = secure_password
-node.set_unless['quantum']['db']['ovs_password'] = secure_password
 
 # use VIP - sak
 #sql_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(sql, "admin").address if sql_address.nil? 
