@@ -313,7 +313,7 @@ template "/etc/quantum/quantum.conf" do
       :networking_plugin => quantum[:quantum][:networking_plugin],
       :rootwrap_bin =>  node[:quantum][:rootwrap],
       :quantum_server => false,
-      :rabbit => rabbit_settings,
+      :rabbit_settings => rabbit_settings,
       :vlan => vlan,
       :per_tenant_vlan => (quantum[:quantum][:networking_mode] == 'vlan' ? true : false),
       :physnet => physnet,
