@@ -56,18 +56,21 @@ else
   keystone = node
 end
 
-keystone_protocol = keystone["keystone"]["api"]["protocol"]
-keystone_host = keystone[:fqdn]
+# use VIP - sak
+#keystone_protocol = keystone["keystone"]["api"]["protocol"]
+#keystone_host = keystone[:fqdn]
+keystone_host = node[:haproxy][:admin_ip]
+keystone_protocol = node[:quantum][:api][:protocol]
+# end of change
 keystone_service_port = keystone["keystone"]["api"]["service_port"]
-keystone_insecure = keystone_protocol == 'https' && keystone[:keystone][:ssl][:insecure]
-
+#keystone_insecure = keystone_protocol == 'https' && keystone[:keystone][:ssl][:insecure]
 admin_username = keystone["keystone"]["admin"]["username"] rescue nil
 admin_password = keystone["keystone"]["admin"]["password"] rescue nil
 admin_tenant = keystone["keystone"]["admin"]["tenant"] rescue "admin"
 Chef::Log.info("Keystone server found at #{keystone_host}")
 
 quantum_insecure = node[:quantum][:api][:protocol] == 'https' && node[:quantum][:ssl][:insecure]
-ssl_insecure = keystone_insecure || quantum_insecure
+ssl_insecure = false#keystone_insecure || quantum_insecure
 
 quantum_args = "--os-username #{node[:quantum][:service_user]}"
 quantum_args = "#{quantum_args} --os-password #{node[:quantum][:service_password]}"
@@ -155,6 +158,7 @@ end
 
 #this workaround for metadata service, should be removed when quantum-metadata-proxy will be released
 #it parses jsoned csv output of quantum to get address of router to pass it into metadata node
+#=begin - commented to pass proposal - sak
 ruby_block "get_fixed_net_router" do
   block do
     require 'csv'
@@ -191,6 +195,7 @@ if node[:quantum][:networking_mode] != "local"
     end
   end
 end
+#=end
 
 if node[:quantum][:networking_plugin] == "linuxbridge"
   bound_if = (node[:crowbar_wall][:network][:nets][:public].last rescue nil)

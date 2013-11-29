@@ -1,3 +1,15 @@
+# add VIP - sak
+haproxy = search(:node, "roles:haproxy").first
+if haproxy.length > 0
+  Chef::Log.info("admin vip at #{haproxy}")
+  vip = haproxy.haproxy.admin_ip
+end
+
+Chef::Log.info("============================================")
+Chef::Log.info("admin vip at #{vip}")
+Chef::Log.info("============================================")
+#end of change
+
 # recipe must be call from nova-compute node to install agents
 quantum = search(:node, "roles:quantum-server AND quantum_config_environment:quantum-config-#{node[:nova][:quantum_instance]}").first
 
@@ -134,7 +146,9 @@ nova = node if nova.name == node.name
 metadata_settings = {
     :debug => quantum[:quantum][:debug],
     :region => "RegionOne",
+    # use VIP -sak
     :host => Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address,
+    #:host => vip,
     :port => "8775",
     :secret => (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
 }
@@ -149,8 +163,13 @@ else
 end
 
 keystone_settings = {
-    :host => keystone[:fqdn],
-    :protocol => keystone["keystone"]["api"]["protocol"],
+    # use VIP -sak
+    #:host => keystone[:fqdn],
+    #:protocol => keystone["keystone"]["api"]["protocol"],
+    :host => vip,
+    # keystone does not have this attribute set so using quantum's
+    :protocol => node[:quantum][:api][:protocol],
+    # end of change
     :service_port => keystone["keystone"]["api"]["service_port"],
     :admin_port => keystone["keystone"]["api"]["admin_port"],
     :service_tenant => keystone["keystone"]["service"]["tenant"],
@@ -227,23 +246,32 @@ vlan = {
     :end => node[:network][:networks][:nova_fixed][:vlan] + 2000
 }
 
-env_filter = " AND rabbitmq_config_environment:rabbitmq-config-#{quantum[:quantum][:rabbitmq_instance]}"
-rabbits = search(:node, "roles:rabbitmq-server#{env_filter}") || []
-if rabbits.length > 0
-  rabbit = rabbits[0]
-  rabbit = node if rabbit.name == node.name
-else
-  rabbit = node
+# Retrieves RabbitMQ attributes and populates quantum.conf
+begin
+  rabbits = search(:node, "roles:rabbitmq") || []
+  if rabbits.length > 0
+    rabbit = rabbits[0]
+    rabbit = node if rabbit.name == node.name
+  else
+    rabbit = node
+  end
+
+  rabbitmq_port = rabbit[:rabbitmq][:port].to_s
+
+  rabbitmq_hosts = ""
+  rabbits.each do |rabbit_node|
+    rabbitmq_hosts += Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit_node, "admin").address + ":" + rabbit_node[:rabbitmq][:port].to_s + ","
+  end
+
+  rabbit_settings = {
+      :address => rabbitmq_hosts[0..-2],
+      :port => rabbit[:rabbitmq][:port],
+      :user => rabbit[:rabbitmq][:user],
+      :password => rabbit[:rabbitmq][:password],
+      :vhost => rabbit[:rabbitmq][:vhost]
+  }
 end
-rabbit_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(rabbit, "admin").address
-Chef::Log.info("Rabbit server found at #{rabbit_address}")
-rabbit_settings = {
-    :address => rabbit_address,
-    :port => rabbit[:rabbitmq][:port],
-    :user => rabbit[:rabbitmq][:user],
-    :password => rabbit[:rabbitmq][:password],
-    :vhost => rabbit[:rabbitmq][:vhost]
-}
+
 
 # configure Quantum
 template "/etc/quantum/api-paste.ini" do
@@ -259,6 +287,12 @@ template "/etc/quantum/api-paste.ini" do
   notifies :restart, "service[quantum-dhcp-agent]", :immediately
   notifies :restart, "service[quantum-metadata-agent]", :immediately
 end
+
+# add IP address - sak
+my_ipaddress = Chef::Recipe::Barclamp::Inventory.get_network_by_type(node, "admin").address
+node[:quantum][:api][:service_host] = my_ipaddress
+#end change
+
 template "/etc/quantum/quantum.conf" do
   cookbook "quantum"
   source "quantum.conf.erb"
@@ -279,7 +313,7 @@ template "/etc/quantum/quantum.conf" do
       :networking_plugin => quantum[:quantum][:networking_plugin],
       :rootwrap_bin =>  node[:quantum][:rootwrap],
       :quantum_server => false,
-      :rabbit => rabbit_settings,
+      :rabbit_settings => rabbit_settings,
       :vlan => vlan,
       :per_tenant_vlan => (quantum[:quantum][:networking_mode] == 'vlan' ? true : false),
       :physnet => physnet,

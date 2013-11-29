@@ -13,6 +13,17 @@
 # limitations under the License.
 #
 
+# add VIP - sak
+Chef::Log.info("============================================")
+Chef::Log.info("       Quantum database.rb recipe             ")
+Chef::Log.info("============================================")
+
+admin_vip = node[:haproxy][:admin_ip]
+server_root_password = node["percona"]["server_root_password"]
+# end of change
+
+# comment out, as using percona - sak
+=begin
 env_filter = " AND database_config_environment:database-config-#{node[:quantum][:database_instance]}" 
 sqls = search(:node, "roles:database-server#{env_filter}") || [] 
 if sqls.length > 0 
@@ -30,18 +41,25 @@ db_provider = Chef::Recipe::Database::Util.get_database_provider(sql)
 db_user_provider = Chef::Recipe::Database::Util.get_user_provider(sql) 
 privs = Chef::Recipe::Database::Util.get_default_priviledges(sql) 
 url_scheme = backend_name
+=end
+# end of change
+
 
 ::Chef::Recipe.send(:include, Opscode::OpenSSL::Password)
-node.set_unless['quantum']['db']['password'] = secure_password
-node.set_unless['quantum']['db']['ovs_password'] = secure_password
 
-sql_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(sql, "admin").address if sql_address.nil? 
+# use VIP - sak
+#sql_address = Chef::Recipe::Barclamp::Inventory.get_network_by_type(sql, "admin").address if sql_address.nil? 
+sql_address = admin_vip
+# end of change
 Chef::Log.info("Database server found at #{sql_address}") 
 
+# commneted out to use script - sak
+=begin
 db_conn = { :host => sql_address, 
             :username => "db_maker", 
             :password => sql["database"][:db_maker_password] }
-
+=end
+# end of change
 props = [ {'db_name' => node[:quantum][:db][:database],
           'db_user' => node[:quantum][:db][:user],
           'db_pass' => node[:quantum][:db][:password],
@@ -59,6 +77,29 @@ props.each do |prop|
   db_pass = prop['db_pass']
   db_conn_name = prop['db_conn_name']
 
+  Chef::Log.info("============================================")
+  Chef::Log.info("       Quantum create database              ")
+  Chef::Log.info("============================================")
+
+  template "/tmp/quantum_grants.sql" do
+    source "quantum_grants.sql.erb"
+    mode 0600
+    variables(
+      :db_name => db_name,
+      :db_user => db_user,
+      :db_pass => db_pass
+    )
+  end
+
+  # execute access grants
+  execute "mysql-install-privileges" do
+    command "/usr/bin/mysql -u root -p#{server_root_password} < /tmp/quantum_grants.sql"
+    action :nothing
+    subscribes :run, resources("template[/tmp/quantum_grants.sql]"), :immediately
+  end
+
+# commented out to use script- sak
+=begin
     database "create #{db_name} quantum database" do
         connection db_conn
         database_name "#{db_name}"
@@ -85,7 +126,9 @@ props.each do |prop|
         provider db_user_provider 
         action :grant 
     end
-
+=end
+#end of change
+    url_scheme = "mysql"
     node[@cookbook_name][:db][db_conn_name] = "#{url_scheme}://#{db_user}:#{db_pass}@#{sql_address}/#{db_name}"
 end
 
