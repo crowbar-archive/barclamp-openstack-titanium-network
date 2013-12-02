@@ -21,8 +21,7 @@ if sqls.length > 0
 else 
     sql = node 
 end
-include_recipe "database::client" 
-backend_name = Chef::Recipe::Database::Util.get_backend_name(sql) 
+backend_name = "percona"
 include_recipe "#{backend_name}::client" 
 include_recipe "#{backend_name}::python-client"
 
