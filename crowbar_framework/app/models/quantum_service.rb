@@ -30,7 +30,7 @@ class QuantumService < ServiceObject
     if role.default_attributes["quantum"]["use_gitrepo"]
       answer << { "barclamp" => "git", "inst" => role.default_attributes["quantum"]["git_instance"] }
     end
-    answer << { "barclamp" => "database", "inst" => role.default_attributes["quantum"]["database_instance"] }
+    answer << { "barclamp" => "percona", "inst" => role.default_attributes["quantum"]["database_instance"] }
     answer << { "barclamp" => "rabbitmq", "inst" => role.default_attributes["quantum"]["rabbitmq_instance"] }
     answer << { "barclamp" => "keystone", "inst" => role.default_attributes["quantum"]["keystone_instance"] }
     answer
@@ -60,7 +60,7 @@ class QuantumService < ServiceObject
 
     base["attributes"]["quantum"]["database_instance"] = ""
     begin
-      databaseService = DatabaseService.new(@logger)
+      databaseService = PerconaService.new(@logger)
       # Look for active roles
       dbs = databaseService.list_active[1] 
       if dbs.empty? 
@@ -78,7 +78,7 @@ class QuantumService < ServiceObject
     end
 
     if base["attributes"]["quantum"]["database_instance"] == ""
-      raise(I18n.t('model.service.dependency_missing', :name => @bc_name, :dependson => "database")) 
+      raise(I18n.t('model.service.dependency_missing', :name => @bc_name, :dependson => "percona")) 
     end
 
     base["deployment"]["quantum"]["elements"] = {
