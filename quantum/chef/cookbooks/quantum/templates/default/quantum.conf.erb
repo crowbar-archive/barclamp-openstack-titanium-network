@@ -274,7 +274,6 @@ firewall_driver = quantum.agent.linux.iptables_firewall.IptablesFirewallDriver
 #
 # Default: network_vlan_ranges =
 # Example: network_vlan_ranges = physnet1:1000:2999
-network_vlan_ranges = physnet1:<%= @vlan[:start] %>:<%= @vlan[:end] %>
 
 [LINUX_BRIDGE]
 # (ListOpt) Comma-separated list of
