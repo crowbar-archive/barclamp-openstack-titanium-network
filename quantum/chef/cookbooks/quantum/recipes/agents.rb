@@ -146,11 +146,9 @@ nova = node if nova.name == node.name
 metadata_settings = {
     :debug => quantum[:quantum][:debug],
     :region => "RegionOne",
-    # use VIP -sak
-    :host => Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address,
-    #:host => vip,
+    :host => vip,
     :port => "8775",
-    :secret => (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
+    :secret => (quantum[:quantum][:quantum_metadata_proxy_shared_secret] rescue '')
 }
 
 env_filter = " AND keystone_config_environment:keystone-config-#{quantum[:quantum][:keystone_instance]}"

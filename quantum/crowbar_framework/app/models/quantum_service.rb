@@ -98,7 +98,8 @@ class QuantumService < ServiceObject
     # Set a common password for ovs database user 
     base["attributes"]["quantum"]["db"]["ovs_password"] = random_password
 
-
+    # Set a random shared secret for metadata settings
+    base["attributes"]["quantum"]["quantum_metadata_proxy_shared_secret"] = random_password
     insts = ["Keystone", "Rabbitmq"]
 
     insts.each do |inst|

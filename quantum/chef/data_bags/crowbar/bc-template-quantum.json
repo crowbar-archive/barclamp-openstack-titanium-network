@@ -13,6 +13,7 @@
       "rabbitmq_instance": "none",
       "use_virtualenv": false,
       "keystone_instance": "none",
+      "quantum_metadata_proxy_shared_secret": "", 
       "pfs_deps": [
         "python-eventlet",
         "python-greenlet",

@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+
 default[:quantum][:debug] = false
 default[:quantum][:verbose] = false
 default[:quantum][:dhcp_domain] = "openstack.local"
