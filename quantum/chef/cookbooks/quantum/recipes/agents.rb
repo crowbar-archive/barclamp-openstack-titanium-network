@@ -24,7 +24,7 @@ unless quantum[:quantum][:use_gitrepo]
         action :nothing
       end
       # hack to properly load openvswith module in Ubuntu
-      if quantum[:quantum][:networking_plugin] == "openvswitch" and pkg == "openvswitch-datapath-dkms" and node.platform == "ubuntu"
+      if quantum[:quantum][:networking_plugin] == "openvswitch" and pkg == "openvswitch-datapath-module" and node.platform == "ubuntu"
         execute "rmmod openvswitch" do
           only_if "modinfo openvswitch -Fintree | grep Y"
         end
