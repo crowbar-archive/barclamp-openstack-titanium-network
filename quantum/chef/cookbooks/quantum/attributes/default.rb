@@ -87,7 +87,7 @@ else
             :packages => [
                 "quantum-plugin-openvswitch-agent",
                 "linux-headers-#{`uname -r`.strip}",
-                "openvswitch-datapath-dkms",
+                "openvswitch-datapath-module",
                 "openvswitch-switch"
             ],
             :commands => {"modprobe openvswitch" => "test -d /sys/module/openvswitch"}
