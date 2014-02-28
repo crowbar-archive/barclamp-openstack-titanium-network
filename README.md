@@ -20,6 +20,19 @@ This barclamp is designed to be used in conjunction with the OpenStack High-Avai
 
 This barclamp should be applued to  3 controller nodes.
 
+Openstack Quantum has the following services. 
+
+Quantum-server 
+Quantum-dhcp-agent 
+Quantum-metadata-agent 
+Quantum-l3-agent 
+Quantum-openvswitch-agent 
+
+As per the design considerations, the quantum-server component is installed on the controllers and rest of the above listed agents are installed on the compute machines. Once the proposal is selected, a minimum of 3 controllers need be added to the proposal on which the quantum-server is automatically installed by the quantum barclamp. 
+
+The installation of the agents takes place when the nova barclamp is installed. Please refer to nova barclamp installation for additional information.
+
+
 
 
 Legals
